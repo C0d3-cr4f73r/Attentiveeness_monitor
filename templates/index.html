@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attentiveness Detection</title>
+  <style>
+    body {
+      background-color: #e8f0fe;
+      font-family: Arial, sans-serif;
+      color: #007bff;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2em;
+      margin-bottom: 20px;
+    }
+
+    #video-container {
+      margin: 20px auto;
+      width: 640px;
+      border: 1px solid #007bff;
+      border-radius: 5px;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+    }
+
+    #buttons-container {
+      margin: 20px auto;
+      display: flex;
+      justify-content: space-around;
+      width: 640px;
+    }
+
+    form {
+      display: inline-block;
+    }
+
+    input[type="submit"] {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    input[type="submit"]:hover {
+      background-color: #0062cc;
+    }
+
+    #download-report-btn {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    #download-report-btn:hover {
+      background-color: #0062cc;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Attentiveness Detection</h1>
+
+  <div id="video-container">
+    <img src="{{ url_for('video_feed') }}" alt="Video Feed" width="640" height="480">
+  </div>
+
+  <div id="buttons-container">
+    {% if recording %}
+      <form action="{{ url_for('stop_recording') }}" method="post">
+        <input type="submit" value="Stop Detection">
+      </form>
+    {% else %}
+      <form action="{{ url_for('start_recording') }}" method="post">
+        <input type="submit" value="Start Detection">
+      </form>
+    {% endif %}
+  </div>
+
+  <button type="button" id="download-report-btn">Download Report</button>
+
+  <script>
+    document.getElementById('download-report-btn').addEventListener('click', function() {
+      // Disable button while downloading
+      this.disabled = true;
+
+      fetch('/download_report')
+        .then(response => response.blob())
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'attentiveness_report.png';
+          link.click();
+          window.URL.revokeObjectURL(url);
+
+          // Re-enable button after download
+          this.disabled = false;
+        })
+        .catch(error => {
+          console.error('Error downloading report:', error);
+          // Handle error message to the user
+        });
+    });
+  </script>
+
+</body>
+
+</html>
