@@ -87,6 +87,24 @@
 
   <button type="button" id="download-report-btn">Download Report</button>
 
+  <form action="/download_csv">
+    <button type="submit">Download CSV Report</button>
+  </form>
+
+  <form action="/view_report">
+      <button type="submit">View Report Table</button>
+  </form>
+
+  <form action="/download_report_graph">
+      <button type="submit">Download Graph Report (PNG)</button>
+  </form>
+
+  <form action="{{ url_for('download_line_graph') }}" method="get">
+    <button type="submit">📈 Download Line Graph</button>
+</form>
+
+
+
   <script>
     document.getElementById('download-report-btn').addEventListener('click', function() {
       // Disable button while downloading

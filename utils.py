@@ -1,103 +1,168 @@
 import csv
 import cv2
+import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import io
 import os
 from matplotlib import pyplot as plt
 import time
 import mediapipe as mp
 from mediapipe.python.solutions import drawing_utils as mp_drawing
 
-mp_holistic = mp.solutions.holistic # Holistic model
-mp_drawing = mp.solutions.drawing_utils # Drawing utilities
+mp_holistic = mp.solutions.holistic  # Holistic model
+mp_drawing = mp.solutions.drawing_utils  # Drawing utilities
 predictions = []
 timestamps = []
 
 # Set CSV file path (replace with your desired path)
 csv_file_path = "attentiveness_data.csv"
 
+
 def mediapipe_detection(image, model):
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # COLOR CONVERSION BGR 2 RGB
-    image.flags.writeable = False                  # Image is no longer writeable
-    results = model.process(image)                 # Make prediction
-    image.flags.writeable = True                   # Image is now writeable 
-    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR) # COLOR COVERSION RGB 2 BGR
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # COLOR CONVERSION BGR 2 RGB
+    image.flags.writeable = False  # Image is no longer writeable
+    results = model.process(image)  # Make prediction
+    image.flags.writeable = True  # Image is now writeable
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)  # COLOR COVERSION RGB 2 BGR
     return image, results
 
-def draw_landmarks(image, results):
-    mp_drawing.draw_landmarks(image, results.face_landmarks, mp_holistic.FACE_CONNECTIONS) # Draw face connections
-    mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS) # Draw pose connections
-    mp_drawing.draw_landmarks(image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS) # Draw left hand connections
-    mp_drawing.draw_landmarks(image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS) # Draw right hand connections
 
-def draw_styled_landmarks(image, results,font_scale=2, font_thickness=2):
+def draw_landmarks(image, results):
+    mp_drawing.draw_landmarks(
+        image, results.face_landmarks, mp_holistic.FACE_CONNECTIONS
+    )  # Draw face connections
+    mp_drawing.draw_landmarks(
+        image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS
+    )  # Draw pose connections
+    mp_drawing.draw_landmarks(
+        image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS
+    )  # Draw left hand connections
+    mp_drawing.draw_landmarks(
+        image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS
+    )  # Draw right hand connections
+
+
+def draw_styled_landmarks(image, results, font_scale=2, font_thickness=2):
     # Draw face connections
-    mp_drawing.draw_landmarks(image, results.face_landmarks, mp_holistic.FACEMESH_CONTOURS,
-                             mp_drawing.DrawingSpec(color=(80,110,10), thickness=1, circle_radius=1),
-                             mp_drawing.DrawingSpec(color=(80,256,121), thickness=1, circle_radius=1)
-                             )
-# Draw pose connections
-    mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS,
-                             mp_drawing.DrawingSpec(color=(80,22,10), thickness=2, circle_radius=4), 
-                             mp_drawing.DrawingSpec(color=(80,44,121), thickness=2, circle_radius=2)
-                             ) 
+    mp_drawing.draw_landmarks(
+        image,
+        results.face_landmarks,
+        mp_holistic.FACEMESH_CONTOURS,
+        mp_drawing.DrawingSpec(color=(80, 110, 10), thickness=1, circle_radius=1),
+        mp_drawing.DrawingSpec(color=(80, 256, 121), thickness=1, circle_radius=1),
+    )
+    # Draw pose connections
+    mp_drawing.draw_landmarks(
+        image,
+        results.pose_landmarks,
+        mp_holistic.POSE_CONNECTIONS,
+        mp_drawing.DrawingSpec(color=(80, 22, 10), thickness=2, circle_radius=4),
+        mp_drawing.DrawingSpec(color=(80, 44, 121), thickness=2, circle_radius=2),
+    )
     # Draw left hand connections
-    mp_drawing.draw_landmarks(image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS, 
-                             mp_drawing.DrawingSpec(color=(121,22,76), thickness=2, circle_radius=4), 
-                             mp_drawing.DrawingSpec(color=(121,44,250), thickness=2, circle_radius=2)
-                             ) 
-    # Draw right hand connections  
-    mp_drawing.draw_landmarks(image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS, 
-                             mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=4), 
-                             mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2)
-                             ) 
+    mp_drawing.draw_landmarks(
+        image,
+        results.left_hand_landmarks,
+        mp_holistic.HAND_CONNECTIONS,
+        mp_drawing.DrawingSpec(color=(121, 22, 76), thickness=2, circle_radius=4),
+        mp_drawing.DrawingSpec(color=(121, 44, 250), thickness=2, circle_radius=2),
+    )
+    # Draw right hand connections
+    mp_drawing.draw_landmarks(
+        image,
+        results.right_hand_landmarks,
+        mp_holistic.HAND_CONNECTIONS,
+        mp_drawing.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=4),
+        mp_drawing.DrawingSpec(color=(245, 66, 230), thickness=2, circle_radius=2),
+    )
     prediction = predict_attentiveness(results)
     text_x, text_y = (10, 30)  # Adjust coordinates as needed
     text = f"{prediction}"
     color = (0, 255, 0) if prediction == "Attentive" else (0, 0, 255)
-    cv2.putText(image, text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX,
-               font_scale, color, font_thickness)
+    cv2.putText(
+        image,
+        text,
+        (text_x, text_y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        font_scale,
+        color,
+        font_thickness,
+    )
 
     return image
-def predict_attentiveness(results):
-    """Predicts attentiveness based on head and eye positions."""
-
-    # Access pose and face landmarks
-    pose_landmarks = results.pose_landmarks
-    face_landmarks = results.face_landmarks
-
-    # Define thresholds for attentiveness (adjust as needed)
-    head_pitch_threshold = 15  # Degrees
-    eye_aspect_ratio_threshold = 0.25
-    head_pitch_angle=0
 
 
-    # Calculate head pitch angle
-    if pose_landmarks:
-        nose = pose_landmarks.landmark[mp_holistic.PoseLandmark.NOSE]
-        ears = [
-            pose_landmarks.landmark[mp_holistic.PoseLandmark.LEFT_EAR],
-            pose_landmarks.landmark[mp_holistic.PoseLandmark.RIGHT_EAR],
-        ]
-        head_pitch_angle = calculate_pitch_angle(nose, ears)
+def generate_attentiveness_graph(csv_file="attentiveness_report.csv"):
+    try:
+        df = pd.read_csv(csv_file)
 
-    # Calculate eye aspect ratio (EAR)
-    if face_landmarks:
-        eye_aspect_ratio = calculate_eye_aspect_ratio(face_landmarks)
+        # Map Attentiveness status to 1 or 0
+        df["Attentiveness_Score"] = df["Attentiveness"].apply(
+            lambda x: 1 if "Attentive" in x and "Not" not in x else 0
+        )
+
+        plt.figure(figsize=(12, 6))
+        plt.plot(
+            df["Timestamp"],
+            df["Attentiveness_Score"],
+            marker="o",
+            color="green",
+            label="Attentiveness",
+        )
+        plt.title("Attentiveness Over Time")
+        plt.xlabel("Timestamp")
+        plt.ylabel("Attentive (1) / Not Attentive (0)")
+        plt.ylim(-0.1, 1.1)
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+
+        # Save the plot to a bytes buffer
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format="png")
+        buffer.seek(0)
+        plt.close()
+
+        return buffer
+
+    except Exception as e:
+        print(f"Error generating graph: {e}")
+        return None
+
+
+def predict_attentiveness(face_roi):
+    """
+    Predicts attentiveness based on simple heuristics applied to the face region.
+    For now, it uses the size of the face ROI as a placeholder logic.
+
+    Args:
+        face_roi (numpy.ndarray): Cropped image of the face.
+
+    Returns:
+        str: "Attentive" or "Not Attentive"
+    """
+    """
+    Detects eyes using Haar Cascade. If no eyes are detected, assumes eyes are closed.
+    """
+    eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
+    gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+    eyes = eye_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+
+    if len(eyes) == 0:
+        return "Not Attentive (Eyes Closed)"
     else:
-        # Handle case where face landmarks are not detected
-        eye_aspect_ratio = None
-
-    # Determine attentiveness (consider both head pose and eye aspect ratio)
-    if (
-        
-        head_pitch_angle < head_pitch_threshold
-        and eye_aspect_ratio is not None
-        and eye_aspect_ratio > eye_aspect_ratio_threshold
-    ):
         return "Attentive"
-    else:
-        return "Not attentive"
-  
+
+    # # Placeholder logic: You can replace this with actual head-pose or eye analysis
+    # h, w, _ = face_roi.shape
+
+    # # Example rule: If face height and width are big enough, assume attentive
+    # if h > 50 and w > 50:
+    #     return "Attentive"
+    # else:
+    #     return "Not Attentive"
+
 
 def calculate_pitch_angle(nose, ears):
     """
@@ -133,6 +198,8 @@ def calculate_pitch_angle(nose, ears):
 
     # Convert radians to degrees and return the angle
     return np.rad2deg(pitch_angle)
+
+
 def calculate_eye_aspect_ratio(face_landmarks):
     """
     Calculates the eye aspect ratio (EAR) for both eyes based on facial landmarks.
@@ -159,6 +226,7 @@ def calculate_eye_aspect_ratio(face_landmarks):
     # Return the average EAR for both eyes
     return (left_ear + right_ear) / 2
 
+
 def calculate_individual_ear(eye_landmarks):
     """
     Calculates the eye aspect ratio (EAR) for a single eye.
@@ -180,7 +248,9 @@ def calculate_individual_ear(eye_landmarks):
 
     # Calculate distances
     vertical_distance = np.linalg.norm(np.array([p3.x, p3.y]) - np.array([p6.x, p6.y]))
-    horizontal_distance = np.linalg.norm(np.array([p1.x, p1.y]) - np.array([p4.x, p4.y]))
+    horizontal_distance = np.linalg.norm(
+        np.array([p1.x, p1.y]) - np.array([p4.x, p4.y])
+    )
 
     # Calculate EAR and handle division by zero
     if horizontal_distance == 0:
