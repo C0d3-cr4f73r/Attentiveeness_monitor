@@ -10,7 +10,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-
 # Customize these based on your setup
 VIDEO_WIDTH = 640
 VIDEO_HEIGHT = 480
@@ -35,6 +34,8 @@ detect = False
 def index():
     return render_template('index.html', recording=recording, timestamps=timestamps, attentiveness_levels=attentiveness_levels)
 
+face_data = {}
+
 # Route for video streaming
 def generate_frames():
     global recording, timestamps, attentiveness_levels, detect
@@ -45,7 +46,7 @@ def generate_frames():
     while True:
         ret, frame = cap.read()
         if not ret:
-            continue  # ✅ Retry reading instead of breaking
+            continue  # Retry reading instead of breaking
 
         if detect:
             # Convert to RGB for MediaPipe
@@ -60,7 +61,7 @@ def generate_frames():
                     x, y, w, h = int(bboxC.xmin * iw), int(bboxC.ymin * ih), \
                                  int(bboxC.width * iw), int(bboxC.height * ih)
 
-                    # ✅ Ensure bounding box is within frame
+                    # Ensure bounding box is within frame
                     x = max(0, x)
                     y = max(0, y)
                     w = min(w, iw - x)
@@ -68,7 +69,7 @@ def generate_frames():
 
                     face_roi = frame[y:y+h, x:x+w]
 
-                    # ✅ Skip if face_roi is invalid or empty
+                    # Skip if face_roi is invalid or empty
                     if face_roi is None or face_roi.size == 0:
                         continue
 
@@ -85,10 +86,12 @@ def generate_frames():
                         timestamps.append(datetime.datetime.now().strftime("%H:%M:%S"))
                         attentiveness_levels.append(attention_status)
 
-        # ✅ Always stream the frame
+        # Always stream the frame
         encoded_frame = cv2.imencode('.jpg', frame)[1].tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + encoded_frame + b'\r\n')
+
+
 
 
 
@@ -109,6 +112,10 @@ def stop_recording():
     recording = False
     detect = False
 
+    # for file_handle in face_data.values():
+    #     file_handle.close()
+    # face_data.clear() 
+
     # Save data to CSV if available
     if timestamps and attentiveness_levels:
         with open("attentiveness_report.csv", "w", newline="") as csvfile:
@@ -121,7 +128,7 @@ def stop_recording():
     timestamps = []
     attentiveness_levels = []
 
-    # ✅ Keep the camera alive, release only when app shuts down
+    # Keep the camera alive, release only when app shuts down
     # cap.release()  # Do NOT release camera here
 
     return redirect(url_for('index'))
@@ -136,23 +143,6 @@ def download_csv():
         )
     except FileNotFoundError:
         return "No CSV report found. Record first!"
-
-# @app.route('/download_report_graph')
-# def download_report_graph():
-#     try:
-#         df = pd.read_csv('attentiveness_report.csv')
-#         timestamps = df['Timestamp'].tolist()
-#         attentiveness_levels = df['Attentiveness'].tolist()
-#     except Exception as e:
-#         print("Error reading CSV:", e)
-#         return "No data available for graph generation.", 404
-
-#     image_bytes = plot_attentiveness_csv(timestamps, attentiveness_levels)
-
-#     response = Response(image_bytes, mimetype='image/png')
-#     response.headers['Content-Disposition'] = 'attachment; filename=attentiveness_report.png'
-#     return response
-
 
 @app.route('/view_report')
 def view_report():
